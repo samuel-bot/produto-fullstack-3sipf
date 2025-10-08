@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import ListarCategorias from "../pages/categorias/listar-categorias";
 import ListarProdutos from "../pages/produtos/listar-produtos";
+import EditarCategoria from "../pages/categorias/editar-categoria";
 
 export default function AppRoutes(){
 
@@ -12,6 +13,8 @@ export default function AppRoutes(){
 
             <Route path="/categorias" element={<ListarCategorias />} />           
             <Route path="/produtos" element={<ListarProdutos />} />           
+
+            <Route path="/categorias/:categoriaId/editar" element={<EditarCategoria/>}/>
 
         </Routes>
     );

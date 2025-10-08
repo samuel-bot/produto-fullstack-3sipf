@@ -8,5 +8,17 @@ export async function findAll(): Promise<CategoriaDTO[]>  {
     const response = await axios.get(`${BASE_URL}/categorias`);
 
     return response.data;
+}
+
+export async function deleteById(id:number) {
+    
+    await axios.delete(`${BASE_URL}/categorias/${id}`)
+}
+
+export async function findById(id:number): Promise<CategoriaDTO> {
+
+    const response = await axios.get(`${BASE_URL}/categorias/${id}`);
+
+    return response.data;
     
 }
