@@ -22,3 +22,10 @@ export async function findById(id:number): Promise<CategoriaDTO> {
     return response.data;
     
 }
+
+export async function update(categoria: CategoriaDTO) {
+    
+    const response = await axios.put(`${BASE_URL}/categorias/${categoria.id}`, categoria);
+
+    return response.data
+}
