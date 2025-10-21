@@ -9,5 +9,5 @@ export type ProdutoDTO = {
 
     categoria: CategoriaDTO;
     
-    lojas: LojaDTO;
+    lojas: LojaDTO[];
 }
