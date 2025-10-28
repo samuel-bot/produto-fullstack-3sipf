@@ -1,5 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+
 import {
   Alert,
   Box,
@@ -15,22 +14,25 @@ import {
   Typography,
   type SelectChangeEvent,
 } from "@mui/material";
+import React, { useEffect, useState, type ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import type { LojaDTO } from "../../../models/loja";
+import type { CategoriaDTO } from "../../../models/categoria";
 
 import * as categoriaService from "../../../services/categoria-service";
+import * as lojasService from "../../../services/loja-service";
 import * as produtoService from "../../../services/produto-service";
-import * as lojaService from "../../../services/loja-service";
-import type { CategoriaDTO } from "../../../models/categoria";
-import type { LojaDTO } from "../../../models/loja";
-import { formatToBRL, unmaskCurrency } from "../../../utils/formatter";
 import axios from "axios";
-import type { ProdutoUpdateDTO } from "../../../models/produto";
+import { formatToBRL, unmaskCurrency } from "../../../utils/formatter";
+import type { ProdutoCreateDTO } from "../../../models/produto";
 
+// Reutilizando os tipos do formulário de Editar Produto
 type FormData = {
   nome: string;
   descricao: string;
-  valor: number | "";
+  valor: number | ""; // '' permite que o campo comece vazio
   categoriaId: number | "";
-  lojasId: number[];
+  lojasId: number[]; // lista de IDs para as lojas selecionadas
 };
 
 type FormErrors = {
@@ -41,11 +43,11 @@ type FormErrors = {
   lojasId: string | null;
 };
 
-export default function EditarProdutoForm() {
-  const { produtoId } = useParams<{ produtoId: string }>();
-
+export default function NovoProdutoForm() {
+  
   const navigate = useNavigate();
 
+  // State para o Formulário
   const [formData, setFormData] = useState<FormData>({
     nome: "",
     descricao: "",
@@ -54,15 +56,17 @@ export default function EditarProdutoForm() {
     lojasId: [],
   });
 
+  // States para Dropdowns
   const [categorias, setCategorias] = useState<CategoriaDTO[]>([]);
   const [lojas, setLojas] = useState<LojaDTO[]>([]);
 
-  const [isLoading, setIsLoading] = useState(true);
+  // States de UI e Status
+  const [isLoading, setIsLoading] = useState(true); // Controla o carregamento INICIAL de dependências
+  const [isSubmitting, setIsSubmitting] = useState(false); // Controla o estado de envio do formulário
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  // State de erros de validação por campo
   const [formErrors, setFormErrors] = useState<FormErrors>({
     nome: null,
     descricao: null,
@@ -71,114 +75,47 @@ export default function EditarProdutoForm() {
     lojasId: null,
   });
 
+  // State auxiliar para o campo Valor (string formatada)
   const [rawValor, setRawValor] = useState<string>(
     formData.valor ? String(formData.valor) : ""
   );
 
-  useEffect(() => {
-    setIsLoading(true);
-    setError(null);
+  // --- Functions de manipulação de formulário ---
 
-    const loadFormData = async () => {
-      if (!produtoId) {
-        setIsLoading(false);
-        setError("Nenhum ID de produto fornecido para edição.");
-        return;
-      }
-
-      try {
-        // 1. Buscas Paralelas: Buscar o produto, categorias e lojas ao mesmo tempo
-        const [produtoData, categoriasData, lojasData] = await Promise.all([
-          produtoService.findById(Number(produtoId)),
-          categoriaService.findAll(),
-          lojaService.findAll(),
-        ]);
-        // 2. Definindo os estados
-        setCategorias(categoriasData);
-        setLojas(lojasData);
-        // 3. Preencher o formulário com dados do produto
-        setFormData({
-          nome: produtoData.nome,
-          descricao: produtoData.descricao,
-          valor: produtoData.valor,
-          categoriaId: produtoData.categoria.id,
-          // Mapeia a lista de objetos LojaDTO para uma lista de IDs
-          lojasId: produtoData.lojas.map((loja) => loja.id),
-        });
-
-        // =======================================================
-        // Sincroniza o estado de exibição (string) com o valor do backend (number)
-        const valorDoBackend = produtoData.valor;
-
-        // Converte o number do backend para string, tratando valores nulos/vazios
-        const valorInicialString = valorDoBackend
-          ? String(formatToBRL(valorDoBackend))
-          : "";
-
-        // ATUALIZA O ESTADO AUXILIAR que é usado no TextField
-        setRawValor(valorInicialString);
-
-        // =======================================================
-      } catch (error: unknown) {
-        let msg = "Erro ao carregar dados do Produto";
-        if (axios.isAxiosError(error) && error.response) {
-          msg = error.response.data.error || msg;
-        }
-        setError(msg);
-        setTimeout(() => {
-          // Redireciona e passa a mensagem de erro no 'state'
-          navigate("/produtos", {
-            state: { globalError: msg },
-          });
-        }, 3000);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadFormData();
-  }, [produtoId, navigate]);
-
-  // Function para manipular mudanças no form
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent
   ) => {
     const { name, value } = e.target;
+
+    // 1. Lógica para o Campo VALOR (usa o state auxiliar rawValor)
     if (name === "valor") {
-      // 1. FILTRO: Permite dígitos, vírgula e ponto para a digitação livre.
       const rawInput = value.replace(/[^\d,.]/g, "");
-
-      // 2. ATUALIZA O ESTADO DE EXIBIÇÃO: Isto garante
-      // que a string digitada (150,5) permaneça.
       setRawValor(rawInput);
-
-      // ADICIONE O RETURN AQUI para garantir que não caia na lógica padrão
       return;
-    } else if (name === "categoriaId") {
-      // O Select retorna o ID como string.
-      // Armazenamos como Number (se houver valor)
-      // ou string vazia (para o placeholder).
+    }
+    // 2. Lógica para o Select de Categoria
+    else if (name === "categoriaId") {
       const selectValue = value === "" ? "" : Number(value);
       setFormData((prevData) => ({
         ...prevData,
         [name]: selectValue,
       }));
-    } else if (name === "lojasId") {
+    }
+    // 3. Lógica para o Multi-Select de Lojas
+    else if (name === "lojasId") {
       let newLojasId: number[] = [];
-      // O valor (value) pode ser uma string (se for uma única seleção)
-      // ou um array (se for multi-select)
-      // Para garantir que sempre temos um array
-      //  NOTA: O value vem como `unknown` aqui e precisa ser tratado como array.
       const selectedValues = Array.isArray(value) ? value : [value];
-      // Mapeando os IDs para números, filtrando valores vazios se houver
+
       newLojasId = selectedValues
         .map((id) => Number(id))
-        .filter((id) => !isNaN(id)); // Garante que só Numbers válidos no array
+        .filter((id) => !isNaN(id));
       setFormData((prevData) => ({
         ...prevData,
         [name]: newLojasId,
       }));
-    } else {
-      // Para os demais campos de texto (nome, descricao)
+    }
+    // 4. Lógica para os demais campos de texto (nome, descricao)
+    else {
       setFormData((prevData) => ({
         ...prevData,
         [name]: value,
@@ -186,56 +123,39 @@ export default function EditarProdutoForm() {
     }
   };
 
-  // FUNÇÃO: Chamada ao sair do campo para limpar e salvar o número no formData
   const handleBlurValor = () => {
-    // Pega a string crua que o usuário digitou (ex: "150,5")
+    
     const valorDigitado = rawValor;
 
     if (!valorDigitado) {
-      // Se vazio, limpa os dois estados
       setRawValor("");
       setFormData((prevData) => ({ ...prevData, valor: "" }));
       return;
     }
-
-    // 1. Limpa e converte a string para o número final (ex: 150.5)
-    // Usa sua função unmaskCurrency:
     const numericValue = unmaskCurrency(valorDigitado);
 
-    // 2. Garante que salvamos o valor numérico final (ou "" se for zero)
     const finalValue = numericValue === 0 ? "" : numericValue;
-
-    // =======================================================
-    // 3. Atualiza o estado de exibição (rawValor) com a formatação BRL
 
     let stringFormatada: string;
     if (finalValue !== "") {
-      // Formata o número limpo (150.5) de volta para a string visual ("150,50")
       stringFormatada = formatToBRL(finalValue);
     } else {
-      // Limpa o estado de exibição se o valor final for zero ou vazio
       stringFormatada = "";
     }
-
-    // ATUALIZA O ESTADO DE EXIBIÇÃO
     setRawValor(stringFormatada);
-    // =======================================================
-
-    // 4. Atualiza o estado PRINCIPAL (o número limpo para envio)
     setFormData((prevData) => ({
       ...prevData,
-      valor: finalValue, // finalValue é o number limpo (150.5)
+      valor: finalValue,
     }));
   };
 
-  // Function para Submit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // 1. Limpeza de Status e Ativação do Loading
+    // 1. Limpeza de Status e Ativação do Loading de SUBMISSÃO
     setError(null);
     setSuccess(null);
-    setIsSubmitting(true);
+    setIsSubmitting(true); // <--- Usa o isSubmitting para desabilitar o botão
 
     // 2. Limpa todos os erros de campo antes de começar o novo submit
     setFormErrors({
@@ -248,30 +168,36 @@ export default function EditarProdutoForm() {
 
     try {
       const dataToSend = { ...formData };
-      // Objeto para coletar erros de Frontend
+      // Objeto para pegar erros de Frontend
       const validationErrors: Partial<FormErrors> = {};
       let hasFrontendError = false;
       // Limpa espaços em branco para validação de tamanho/vazio
       const nomeTrim = dataToSend.nome.trim();
       const descricaoTrim = dataToSend.descricao.trim();
-      // 3. Validações de Frontend
+
+      // --- INÍCIO DA VALIDAÇÃO DO FRONTEND ---
+
+      // Validação: Nome
       if (nomeTrim.length === 0) {
         validationErrors.nome = "O campo Nome é obrigatório";
         hasFrontendError = true;
       } else if (nomeTrim.length < 3 || nomeTrim.length > 100) {
         validationErrors.nome =
-          "O campo Nome dever ter entre 3 e 100 caracteres";
+          "O campo Nome deve ter entre 3 e 100 caracteres";
         hasFrontendError = true;
       }
+
+      // Validação: Descrição
       if (descricaoTrim.length === 0) {
         validationErrors.descricao = "O campo Descrição é obrigatório";
         hasFrontendError = true;
       } else if (descricaoTrim.length < 10) {
         validationErrors.descricao =
-          "O campo Descrição dever ter no mínimo 10 caracteres";
+          "O campo Descrição deve ter no mínimo 10 caracteres";
         hasFrontendError = true;
       }
 
+      // Validação: Valor
       const valorNumber = Number(dataToSend.valor);
       if (dataToSend.valor === "" || isNaN(valorNumber)) {
         validationErrors.valor =
@@ -282,14 +208,21 @@ export default function EditarProdutoForm() {
           "O campo Valor deve ser um número positivo maior que zero.";
         hasFrontendError = true;
       }
+
+      // Validação: Categoria
       if (dataToSend.categoriaId === "") {
         validationErrors.categoriaId = "Selecione uma Categoria";
         hasFrontendError = true;
       }
+
+      // Validação: Lojas (Array)
       if (dataToSend.lojasId.length === 0) {
         validationErrors.lojasId = "Selecione pelo menos uma Loja";
         hasFrontendError = true;
       }
+
+      // --- FIM DA VALIDAÇÃO DO FRONTEND ---
+
       // ------------------------------------------------------------------
       // Se houver qualquer erro de validação de frontend, exibe e interrompe o envio
       if (hasFrontendError) {
@@ -297,15 +230,17 @@ export default function EditarProdutoForm() {
           ...prev,
           ...validationErrors,
         }));
-        setIsSubmitting(false); // Reabilita o botão imediatamente
+        // IMPORTANTE: Não precisamos chamar setIsSubmitting(false) aqui se o 'finally' for chamado.
+        // No entanto, para garantir que o botão seja reabilitado imediatamente na validação local:
+        setIsSubmitting(false);
         return; // Interrompe o submit aqui!
       }
 
-      // 4. MONTAGEM DO DTO FINAL PARA A API
+      // 4. MONTAGEM DO DTO FINAL PARA A API (Se a validação local passou)
       const categoriaDTO = { id: Number(dataToSend.categoriaId) };
-      // Blindando o ID para garantir que seja NUMBER
       const lojasDTO = dataToSend.lojasId.map((id) => ({ id: Number(id) }));
-      const updateDTO: ProdutoUpdateDTO = {
+
+      const createDTO: ProdutoCreateDTO = {
         nome: nomeTrim,
         descricao: descricaoTrim,
         valor: valorNumber,
@@ -313,20 +248,28 @@ export default function EditarProdutoForm() {
         lojas: lojasDTO,
       };
 
-      // 5. Chamada do Serviço (API)
-      if (!produtoId) {
-        throw Error("ID do Produto não encontrado para atualização.");
-      }
-
-      await produtoService.updateProduto(Number(produtoId), updateDTO);
+      // 5. Chamada do Serviço (API) - ONDE O SALVAMENTO OCORRE
+      await produtoService.createProduto(createDTO);
 
       // 6. Sucesso
-      setSuccess("Produto atualizado com sucesso!");
+      setSuccess("Produto cadastrado com sucesso!");
+
+      // Limpa o formulário após o sucesso (opcional)
+      setFormData({
+        nome: "",
+        descricao: "",
+        valor: "",
+        categoriaId: "",
+        lojasId: [],
+      });
+      setRawValor("");
+
       setTimeout(() => {
         navigate("/produtos");
       }, 3000);
     } catch (error: unknown) {
-      let msg = "Erro ao atualizar o Produto. Tente novamente.";
+      // 7. Tratamento de Erro do Backend
+      let msg = "Erro ao cadastrar o Produto. Tente novamente.";
 
       if (axios.isAxiosError(error) && error.response) {
         const errorData = error.response.data;
@@ -338,12 +281,10 @@ export default function EditarProdutoForm() {
           Array.isArray(errorData.errors)
         ) {
           const newErrors: Partial<FormErrors> = {};
-
           errorData.errors.forEach(
             (err: { field: string; message: string }) => {
               let fieldName = err.field;
-
-              // Mapeamento de campos aninhados do Spring para o estado do Formulário (frontend)
+              // Mapeamento de campos aninhados do Spring para o estado do Formulário
               if (fieldName.includes("categoria")) {
                 fieldName = "categoriaId";
               } else if (fieldName.includes("lojas")) {
@@ -354,7 +295,6 @@ export default function EditarProdutoForm() {
               msg = errorData.message || msg;
             }
           );
-
           setFormErrors((prev) => ({
             ...prev,
             ...newErrors,
@@ -364,20 +304,59 @@ export default function EditarProdutoForm() {
           msg = errorData.message || errorData.error || msg;
         }
       } else if (error instanceof Error) {
-        // Tratamento dos erros lançados no Frontend
         msg = error.message;
       }
 
       setError(msg);
       setTimeout(() => setError(null), 4000);
     } finally {
+      // 8. FINALIZAÇÃO: Desabilita o estado de submissão
       setIsSubmitting(false);
     }
   };
 
+  // --- useeffect para carregar Categorias e Lojas (Corrigido) ---
+  useEffect(() => {
+    // Function para carregar as Listas (Definida DENTRO do useEffect)
+    const loadDependenciesList = async () => {
+      setIsLoading(true); // INICIA o loading de dependências
+      setError(null);
+
+      try {
+        // Buscas paralelas
+        const [categoriaData, lojasData] = await Promise.all([
+          categoriaService.findAll(),
+          lojasService.findAll(),
+        ]);
+
+        setCategorias(categoriaData);
+        setLojas(lojasData);
+      } catch (error: unknown) {
+        let msg = "Erro ao carregar listas de Categorias e Lojas";
+        if (axios.isAxiosError(error) && error.response) {
+          msg = error.response.data.error || msg;
+        }
+        // Em caso de erro fatal no carregamento
+        setError(msg);
+        setTimeout(() => {
+          navigate("/produtos", {
+            // <--- CORRIGIDO: Adicionado a barra '/'
+            state: { globalError: msg },
+          });
+        }, 3000);
+      } finally {
+        setIsLoading(false); // FINALIZA o loading (sucesso ou falha)
+      }
+    };
+
+    // CHAMA A FUNÇÃO para que ela execute na montagem do componente
+    loadDependenciesList();
+  }, [navigate]);
+
+  // --- RENDERIZAÇÃO (JSX) ---
   return (
     <Box sx={{ mt: 2, p: 4 }}>
-      {/* MENSAGENS GLOBAIS DE SUCESSO/ERRO */}
+      {/* MENSAGENS GLOBAIS DE SUCESSO/ERRO (Backend/Geral) */}
       {success && (
         <Alert severity="success" sx={{ mb: 2 }}>
           {success}
@@ -391,16 +370,17 @@ export default function EditarProdutoForm() {
       )}
 
       <Typography variant="h4" component="h1">
-        Editar Produto
+        Cadastrar Produto
       </Typography>
 
+      {/* 1. EXIBIÇÃO DE LOADING INICIAL */}
       {isLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
           <CircularProgress />
         </Box>
       ) : (
+        // 2. EXIBIÇÃO DO FORMULÁRIO (Somente se não houver erro inicial)
         !error && (
-          /* 3. FORMULÁRIO (SÓ APARECE SE NÃO ESTIVER CARREGANDO NEM TIVER ERRO INICIAL) */
           <Box
             component="form"
             onSubmit={handleSubmit}
@@ -418,23 +398,20 @@ export default function EditarProdutoForm() {
               autoFocus
               value={formData.nome}
               onChange={handleChange}
+              // onBlur para trimar espaços (boa prática)
               onBlur={() => {
-                // 1. Pega o valor atual do estado (que pode ter espaços)
                 const nomeAtual = formData.nome;
                 const nomeTrimado = nomeAtual.trim();
-
-                // 2. Verifica se houve alteração e atualiza o estado se necessário
                 if (nomeAtual !== nomeTrimado) {
                   setFormData((prevData) => ({
                     ...prevData,
-                    nome: nomeTrimado, // Salva o valor trimado de volta no formData
+                    nome: nomeTrimado,
                   }));
                 }
               }}
-              // 1. ATIVA O ESTILO DE ERRO (BORDA VERMELHA)
               error={!!formErrors.nome}
-              // 2. EXIBE A MENSAGEM DE ERRO (HELPER TEXT)
               helperText={formErrors.nome}
+              disabled={isSubmitting}
               sx={{ mb: 2 }}
             />
 
@@ -451,20 +428,18 @@ export default function EditarProdutoForm() {
               value={formData.descricao}
               onChange={handleChange}
               onBlur={() => {
-                // 1. Pega o valor atual do estado (que pode ter espaços)
                 const descricaoAtual = formData.descricao;
                 const descricaoTrimado = descricaoAtual.trim();
-
-                // 2. Verifica se houve alteração e atualiza o estado se necessário
                 if (descricaoAtual !== descricaoTrimado) {
                   setFormData((prevData) => ({
                     ...prevData,
-                    descricao: descricaoTrimado, // Salva o valor trimado de volta no formData
+                    descricao: descricaoTrimado,
                   }));
                 }
               }}
               error={!!formErrors.descricao}
               helperText={formErrors.descricao}
+              disabled={isSubmitting}
               sx={{ mb: 2 }}
             />
 
@@ -481,12 +456,11 @@ export default function EditarProdutoForm() {
               onBlur={handleBlurValor} // <<< CHAMA A LIMPEZA E SALVAMENTO FINAL
               error={!!formErrors.valor}
               helperText={formErrors.valor}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">R$</InputAdornment>
-                  ),
-                },
+              disabled={isSubmitting}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">R$</InputAdornment>
+                ),
               }}
               sx={{ mb: 2 }}
             />
@@ -497,8 +471,8 @@ export default function EditarProdutoForm() {
               margin="normal"
               required
               sx={{ mb: 2 }}
-              // <<< Conecta o estado de erro ao FormControl >>>
               error={!!formErrors.categoriaId}
+              disabled={isSubmitting}
             >
               <InputLabel id="categoria-label">Categoria</InputLabel>
               <Select
@@ -509,7 +483,7 @@ export default function EditarProdutoForm() {
                   formData.categoriaId === ""
                     ? ""
                     : String(formData.categoriaId)
-                } // Converte para string para o Select
+                }
                 label="Categoria"
                 onChange={handleChange}
               >
@@ -522,7 +496,6 @@ export default function EditarProdutoForm() {
                   </MenuItem>
                 ))}
               </Select>
-              {/* <<< Exibe a mensagem de erro (helper text) >>> */}
               {formErrors.categoriaId && (
                 <Typography
                   variant="caption"
@@ -534,14 +507,14 @@ export default function EditarProdutoForm() {
               )}
             </FormControl>
 
-            {/* 5.  Multi-Select para Lojas */}
+            {/* 5. Multi-Select para Lojas */}
             <FormControl
               fullWidth
               margin="normal"
               required
               sx={{ mb: 2 }}
-              // <<< Conecta o estado de erro ao FormControl >>>
               error={!!formErrors.lojasId}
+              disabled={isSubmitting}
             >
               <InputLabel id="lojas">Lojas</InputLabel>
               <Select
@@ -549,13 +522,10 @@ export default function EditarProdutoForm() {
                 id="lojas-multiple-chip"
                 multiple
                 name="lojasId"
-                // O VALOR é o array de números (number[]) do seu state
                 value={formData.lojasId}
-                // SOLUÇÃO DE TIPAGEM: Usamos uma função anônima que recebe o evento tipado
-                // e passa para o handleChange, que aceita o SelectChangeEvent.
+                // Usamos uma função anônima para garantir a tipagem correta
                 onChange={(event) => handleChange(event as SelectChangeEvent)}
                 label="Lojas"
-                // renderValue é tipado com number[] para funcionar com o value
                 renderValue={(selectedIds: number[]) => (
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                     {selectedIds.map((id) => {
@@ -568,13 +538,11 @@ export default function EditarProdutoForm() {
                 )}
               >
                 {lojas.map((loja) => (
-                  // O valor do MenuItem também é numérico (number)
                   <MenuItem key={loja.id} value={loja.id}>
                     {loja.nome}
                   </MenuItem>
                 ))}
               </Select>
-              {/* <<< Exibe a mensagem de erro (helper text) >>> */}
               {formErrors.lojasId && (
                 <Typography
                   variant="caption"
@@ -586,15 +554,31 @@ export default function EditarProdutoForm() {
               )}
             </FormControl>
 
-            <Button
-              type="submit"
-              size="large"
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={isSubmitting} // Desabilita o botão durante o submit
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 2,
+                mt: 3,
+              }}
             >
-              {isSubmitting ? <CircularProgress size={24} /> : "Salvar"}
-            </Button>
+              <Button
+                variant="outlined"
+                size="large"
+                onClick={() => navigate("/produtos")}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="large"
+                variant="contained"
+                disabled={isSubmitting} // Desabilita o botão durante o submit
+              >
+                {isSubmitting ? <CircularProgress size={24} /> : "Salvar"}
+              </Button>
+            </Box>
           </Box>
         )
       )}

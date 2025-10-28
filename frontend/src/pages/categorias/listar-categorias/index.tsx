@@ -1,6 +1,7 @@
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   IconButton,
   Paper,
@@ -65,7 +66,26 @@ export default function ListarCategorias() {
 
   return (
     <Box sx={{ p: 4 }}>
-      {success && (
+      <Box
+      sx={{ display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        mb: 3,
+      }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Categorias
+      </Typography>
+      <Button variant="contained">
+        <Link
+        to="/categorias/novo"
+        style={{ textDecoration: "none", color: "inherit",}}
+        >
+          Novo
+        </Link>
+        </Button>
+        </Box>
+
+        {success && (
         <Alert severity="success" sx={{ mb: 2 }}>
           {success}
         </Alert>
@@ -76,9 +96,7 @@ export default function ListarCategorias() {
         </Alert>
       )}
 
-      <Typography variant="h4" component="h1" gutterBottom>
-        Categorias
-      </Typography>
+      
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>

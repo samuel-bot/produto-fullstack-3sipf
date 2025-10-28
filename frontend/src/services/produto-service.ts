@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { ProdutoDTO, ProdutoUpdateDTO } from "../models/produto";
+import type { ProdutoCreateDTO, ProdutoDTO, ProdutoUpdateDTO } from "../models/produto";
 import { BASE_URL } from "../utils/system";
 
 
@@ -17,7 +17,7 @@ export async function deleteById(id: number) {
 
 export async function findById(id:number): Promise<ProdutoDTO>{
 
-    const response = await axios.get(`${BASE_URL}/produtos${id}`);
+    const response = await axios.get(`${BASE_URL}/produtos/${id}`);
 
     return response.data;
     
@@ -32,4 +32,9 @@ export async function updateProduto(
 
     return reponse.data;
     
+}
+
+export async function createProduto(dto: ProdutoCreateDTO): Promise<ProdutoDTO> {
+    const response = await axios.post(`${BASE_URL}/produtos`, dto);
+    return response.data;
 }

@@ -1,4 +1,4 @@
-import { Alert, Box, CircularProgress, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
+import { Alert, Box, Button, CircularProgress, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 import * as produtoService from "../../../services/produto-service";
 import type { ProdutoDTO } from "../../../models/produto";
@@ -64,9 +64,24 @@ export default function ListarProdutos() {
           {error}
         </Alert>
       )}
-      <Typography variant="h4" component="h1" gutterBottom>
+
+      <Box sx={{ display: "flex", justifyContent: "space-between",
+        alignItems: "center", mb: 3
+      }}>
+        <Typography variant="h4" component="h1" gutterBottom>
         Listagem de Produtos
-      </Typography>
+          </Typography>
+          <Button variant="contained">
+            <Link
+            to="/produtos/novo"
+            style={{ textDecoration: "none", color: "inherit"}}
+            >
+              Novo
+            </Link>
+          </Button>
+      </Box>
+
+      
 
       {isLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>

@@ -94,7 +94,7 @@ export default function FormularioNovaCategoria() {
       id="nome"
       name="nome"
       label="Nome da Categoria"
-      value={FormData.name}
+      value={formData.nome}
       onChange={handleChange}
       error={!!error}
       fullWidth
